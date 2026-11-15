@@ -281,17 +281,23 @@ function sync() {
 
 }
 
+
 function togglePlay() {
+  if (!player) {
+    $("status").textContent = "Player Loading...";
+    return;
+  }
 
-  if (!player) return;
+  const state = player.getPlayerState();
 
-  if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+  if (state === YT.PlayerState.PLAYING) {
     player.pauseVideo();
   } else {
     player.playVideo();
+    $("status").textContent = "PLAY REQUESTED";
   }
-
 }
+
 
 function next() {
   if (player) player.nextVideo();
