@@ -7,7 +7,9 @@
 <title>Music Player</title>
 
 <style>
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+}
 
 body {
   margin: 0;
@@ -29,18 +31,21 @@ body {
 }
 
 .cover {
+  position: relative;
   width: 100%;
   aspect-ratio: 1;
   border-radius: 22px;
   overflow: hidden;
-  background: #aaa;
+  background: #000;
 }
 
-.cover img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+#yt {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 100% !important;
+  border: 0;
 }
 
 .info {
@@ -75,7 +80,7 @@ input[type=range] {
   flex: 1;
   height: 6px;
   border-radius: 9px;
-  background: #aaa;
+  accent-color: #1685ff;
 }
 
 .controls {
@@ -110,35 +115,34 @@ button.main svg {
   text-align: center;
   padding-top: 8px;
 }
-
-/* YouTube 플레이어: 최소 크기 확보 */
-#yt {
-  width: 200px;
-  height: 200px;
-  margin: 12px auto;
-}
 </style>
 </head>
 
 <body>
 
 <div class="player">
+
+  <!-- 유튜브 영상 -->
   <div class="cover">
-    <img id="thumb" src="" alt="Album Cover">
+    <div id="yt"></div>
   </div>
 
+  <!-- 곡 정보 -->
   <div class="info">
     <div class="title" id="title">Music Player</div>
     <div class="artist">YouTube Playlist</div>
   </div>
 
+  <!-- 진행바 -->
   <div class="progress-row">
     <span id="elapsed">0:00</span>
     <input id="seek" type="range" min="0" max="1000" value="0">
     <span id="remaining">-0:00</span>
   </div>
 
+  <!-- 컨트롤 -->
   <div class="controls">
+
     <button onclick="previous()">
       <svg viewBox="0 0 24 24">
         <path d="M6 5h2v14H6zM20 5v14L9 12z"/>
@@ -156,12 +160,12 @@ button.main svg {
         <path d="M16 5h2v14h-2zM4 5v14l11-7z"/>
       </svg>
     </button>
+
   </div>
 
   <div class="status" id="status">따냐하</div>
-</div>
 
-<div id="yt"></div>
+</div>
 
 <script>
 const PLAYLIST_ID = "PLAy4QPNVwM40";
@@ -180,27 +184,31 @@ function fmt(s) {
 }
 
 function onYouTubeIframeAPIReady() {
+
   player = new YT.Player("yt", {
-    width: 200,
-    height: 200,
+    width: "560",
+    height: "560",
+
     playerVars: {
-      listType: "playlist",
       playsinline: 1,
       rel: 0,
-      controls: 1
+      controls: 1,
+      autoplay: 0
     },
+
     events: {
       onReady: e => {
         e.target.cuePlaylist({
           list: PLAYLIST_ID,
-          listType: "playlist"
+          listType: "playlist",
+          index: 0
         });
+
         $("status").textContent = "READY";
       },
+
       onStateChange: onState,
-      onAutoplayBlocked: () => {
-        $("status").textContent = "PLAYBACK BLOCKED";
-      },
+
       onError: e => {
         $("status").textContent = "ERROR " + e.data;
       }
@@ -209,13 +217,20 @@ function onYouTubeIframeAPIReady() {
 }
 
 function onState(e) {
+
   if (e.data === YT.PlayerState.PLAYING) {
+
     $("playIcon").innerHTML =
       '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
+
     $("status").textContent = "NOW PLAYING";
 
-    if (!timer) timer = setInterval(sync, 500);
+    if (!timer) {
+      timer = setInterval(sync, 500);
+    }
+
   } else {
+
     $("playIcon").innerHTML =
       '<path d="M7 4v16l13-8z"/>';
 
@@ -223,41 +238,42 @@ function onState(e) {
       $("status").textContent = "PAUSED";
     }
   }
+
   sync();
 }
 
 function sync() {
+
   if (!player || !player.getVideoData) return;
 
   const data = player.getVideoData();
-  const id = data.video_id;
+  const t = player.getCurrentTime() || 0;
 
-  if (id) {
+  if (data && data.title) {
     $("title").textContent = data.title;
-    $("thumb").src =
-      "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg";
   }
 
   duration = player.getDuration() || 0;
-  const t = player.getCurrentTime() || 0;
 
   if (!seeking) {
-    $("seek").value =
-      duration ? Math.round(t / duration * 1000) : 0;
+    $("seek").value = duration
+      ? Math.round(t / duration * 1000)
+      : 0;
   }
 
   $("elapsed").textContent = fmt(t);
+
   $("remaining").textContent =
     "-" + fmt(Math.max(0, duration - t));
 }
 
 function togglePlay() {
-  if (!player) {
-    $("status").textContent = "LOADING";
-    return;
-  }
 
-  if (player.getPlayerState() === YT.PlayerState.PLAYING) {
+  if (!player) return;
+
+  const state = player.getPlayerState();
+
+  if (state === YT.PlayerState.PLAYING) {
     player.pauseVideo();
   } else {
     player.playVideo();
@@ -278,17 +294,20 @@ $("seek").addEventListener("input", () => {
 });
 
 $("seek").addEventListener("change", () => {
+
   if (player && duration) {
     player.seekTo(
       Number($("seek").value) / 1000 * duration,
       true
     );
   }
+
   seeking = false;
 });
 
 </script>
 
 <script src="https://www.youtube.com/iframe_api"></script>
+
 </body>
 </html>
