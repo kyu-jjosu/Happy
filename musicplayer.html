@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Music Player</title>
+<title>Notion Music Player</title>
 
 <style>
 * { box-sizing: border-box; }
@@ -34,9 +33,21 @@ body {
   border-radius: 22px;
   overflow: hidden;
   background: #aaa;
+  position: relative;
 }
 
-.cover img {
+/* 실제 유튜브 플레이어는 숨기거나 투명하게 처리하여 소리와 오디오 권한을 확보합니다 */
+#yt-player {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  pointer-events: none; /* 클릭 방해 금지 */
+}
+
+.cover-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
@@ -49,7 +60,7 @@ body {
 }
 
 .title {
-  font-size: 23px;
+  font-size: 21px;
   font-weight: 700;
   white-space: nowrap;
   overflow: hidden;
@@ -57,7 +68,7 @@ body {
 }
 
 .artist {
-  font-size: 17px;
+  font-size: 15px;
   color: #777;
   margin-top: 6px;
 }
@@ -76,6 +87,8 @@ input[type=range] {
   height: 6px;
   border-radius: 9px;
   background: #aaa;
+  accent-color: #555;
+  cursor: pointer;
 }
 
 .controls {
@@ -91,6 +104,11 @@ button {
   background: transparent;
   color: #151313;
   cursor: pointer;
+  transition: transform 0.1s ease;
+}
+
+button:active {
+  transform: scale(0.92);
 }
 
 button svg {
@@ -110,13 +128,6 @@ button.main svg {
   text-align: center;
   padding-top: 8px;
 }
-
-/* YouTube 플레이어: 최소 크기 확보 */
-#yt {
-  width: 200px;
-  height: 200px;
-  margin: 12px auto;
-}
 </style>
 </head>
 
@@ -124,22 +135,26 @@ button.main svg {
 
 <div class="player">
   <div class="cover">
-    <img id="thumb" src="" alt="Album Cover">
+    <!-- 유튜브 플레이어 iframe (노션 권한 샌드박스 완벽 대응 및 오디오 허용) -->
+    <iframe id="yt-player" 
+      src="https://www.youtube.com/embed/videoseries?list=PLAy4QPNVwM40&enablejsapi=1&playsinline=1" 
+      allow="autoplay; encrypted-media; picture-in-picture">
+    </iframe>
   </div>
 
   <div class="info">
-    <div class="title" id="title">Music Player</div>
-    <div class="artist">YouTube Playlist</div>
+    <div class="title" id="title">YouTube Playlist</div>
+    <div class="artist">Notion Music Widget</div>
   </div>
 
   <div class="progress-row">
     <span id="elapsed">0:00</span>
-    <input id="seek" type="range" min="0" max="1000" value="0">
+    <input id="seek" type="range" min="0" max="100" value="0">
     <span id="remaining">-0:00</span>
   </div>
 
   <div class="controls">
-    <button onclick="previous()">
+    <button onclick="previousVideo()">
       <svg viewBox="0 0 24 24">
         <path d="M6 5h2v14H6zM20 5v14L9 12z"/>
       </svg>
@@ -151,144 +166,63 @@ button.main svg {
       </svg>
     </button>
 
-    <button onclick="next()">
+    <button onclick="nextVideo()">
       <svg viewBox="0 0 24 24">
         <path d="M16 5h2v14h-2zM4 5v14l11-7z"/>
       </svg>
     </button>
   </div>
 
-  <div class="status" id="status">따냐하</div>
+  <div class="status" id="status">PLAYER READY</div>
 </div>
 
-<div id="yt"></div>
-
 <script>
-const PLAYLIST_ID = "PLAy4QPNVwM40";
+// 유튜브 IFrame 플레이어 API 연동을 위한 안전한 메시징 제어
+const iframe = document.getElementById('yt-player');
+let isPlaying = false;
 
-let player;
-let duration = 0;
-let seeking = false;
-let timer = null;
-
-const $ = id => document.getElementById(id);
-
-function fmt(s) {
-  if (!isFinite(s) || s < 0) s = 0;
-  return Math.floor(s / 60) + ":" +
-    String(Math.floor(s % 60)).padStart(2, "0");
-}
-
-function onYouTubeIframeAPIReady() {
-  player = new YT.Player("yt", {
-    width: 200,
-    height: 200,
-    playerVars: {
-      listType: "playlist",
-      playsinline: 1,
-      rel: 0,
-      controls: 1
-    },
-    events: {
-      onReady: e => {
-        e.target.cuePlaylist({
-          list: PLAYLIST_ID,
-          listType: "playlist"
-        });
-        $("status").textContent = "READY";
-      },
-      onStateChange: onState,
-      onAutoplayBlocked: () => {
-        $("status").textContent = "PLAYBACK BLOCKED";
-      },
-      onError: e => {
-        $("status").textContent = "ERROR " + e.data;
-      }
-    }
-  });
-}
-
-function onState(e) {
-  if (e.data === YT.PlayerState.PLAYING) {
-    $("playIcon").innerHTML =
-      '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
-    $("status").textContent = "NOW PLAYING";
-
-    if (!timer) timer = setInterval(sync, 500);
-  } else {
-    $("playIcon").innerHTML =
-      '<path d="M7 4v16l13-8z"/>';
-
-    if (e.data === YT.PlayerState.PAUSED) {
-      $("status").textContent = "PAUSED";
-    }
+function postMessageToPlayer(func, args = []) {
+  if (iframe && iframe.contentWindow) {
+    iframe.contentWindow.postMessage(JSON.stringify({
+      event: 'command',
+      func: func,
+      args: args
+    }), '*');
   }
-  sync();
 }
 
-function sync() {
-  if (!player || !player.getVideoData) return;
-
-  const data = player.getVideoData();
-  const id = data.video_id;
-
-  if (id) {
-    $("title").textContent = data.title;
-    $("thumb").src =
-      "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg";
-  }
-
-  duration = player.getDuration() || 0;
-  const t = player.getCurrentTime() || 0;
-
-  if (!seeking) {
-    $("seek").value =
-      duration ? Math.round(t / duration * 1000) : 0;
-  }
-
-  $("elapsed").textContent = fmt(t);
-  $("remaining").textContent =
-    "-" + fmt(Math.max(0, duration - t));
-}
-
+// 재생 / 일시정지 토글
 function togglePlay() {
-  if (!player) {
-    $("status").textContent = "LOADING";
-    return;
-  }
-
-  if (player.getPlayerState() === YT.PlayerState.PLAYING) {
-    player.pauseVideo();
+  const playIcon = document.getElementById('playIcon');
+  if (!isPlaying) {
+    postMessageToPlayer('playVideo');
+    playIcon.innerHTML = '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
+    document.getElementById('status').textContent = "NOW PLAYING";
+    isPlaying = true;
   } else {
-    player.playVideo();
-    $("status").textContent = "PLAY REQUESTED";
+    postMessageToPlayer('pauseVideo');
+    playIcon.innerHTML = '<path d="M7 4v16l13-8z"/>';
+    document.getElementById('status').textContent = "PAUSED";
+    isPlaying = false;
   }
 }
 
-function next() {
-  if (player) player.nextVideo();
+// 다음 곡
+function nextVideo() {
+  postMessageToPlayer('nextVideo');
+  document.getElementById('status').textContent = "NEXT TRACK";
+  isPlaying = true;
+  document.getElementById('playIcon').innerHTML = '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
 }
 
-function previous() {
-  if (player) player.previousVideo();
+// 이전 곡
+function previousVideo() {
+  postMessageToPlayer('previousVideo');
+  document.getElementById('status').textContent = "PREVIOUS TRACK";
+  isPlaying = true;
+  document.getElementById('playIcon').innerHTML = '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
 }
-
-$("seek").addEventListener("input", () => {
-  seeking = true;
-});
-
-$("seek").addEventListener("change", () => {
-  if (player && duration) {
-    player.seekTo(
-      Number($("seek").value) / 1000 * duration,
-      true
-    );
-  }
-  seeking = false;
-});
-
 </script>
 
-<script src="https://www.youtube.com/iframe_api"></script>
 </body>
 </html>
