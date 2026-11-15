@@ -1,584 +1,294 @@
+
 <!DOCTYPE html>
-
 <html lang="ko">
-
 <head>
-
 <meta charset="UTF-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1">
-
 <title>Music Player</title>
 
-
-
 <style>
-
-{ box-sizing: border-box; }
-
+* { box-sizing: border-box; }
 
 body {
-
   margin: 0;
-
   padding: 14px;
-
   background: transparent;
-
   font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-
   color: #171515;
-
 }
-
-
 
 .player {
-
   width: 100%;
-
   max-width: 560px;
-
   margin: auto;
-
   background: linear-gradient(50deg, #B4E7FF, #F9E6B2);
-
   border: 1px solid rgba(255,255,255,.7);
-
   border-radius: 28px;
-
   padding: 14px;
-
   box-shadow: 0 0 15px rgba(180,231,255,.15);
-
 }
-
-
 
 .cover {
-
   width: 100%;
-
   aspect-ratio: 1;
-
   border-radius: 22px;
-
   overflow: hidden;
-
   background: #aaa;
-
 }
-
-
 
 .cover img {
-
   width: 100%;
-
   height: 100%;
-
   object-fit: cover;
-
   display: block;
-
 }
-
-
 
 .info {
-
   padding: 18px 8px 8px;
-
   text-align: center;
-
 }
-
-
 
 .title {
-
   font-size: 23px;
-
   font-weight: 700;
-
   white-space: nowrap;
-
   overflow: hidden;
-
   text-overflow: ellipsis;
-
 }
-
-
 
 .artist {
-
   font-size: 17px;
-
   color: #777;
-
   margin-top: 6px;
-
 }
-
-
 
 .progress-row {
-
   display: flex;
-
   align-items: center;
-
   gap: 10px;
-
   color: #777;
-
   font-size: 13px;
-
   margin: 18px 4px 8px;
-
 }
-
-
 
 input[type=range] {
-
   flex: 1;
-
   height: 6px;
-
   border-radius: 9px;
-
   background: #aaa;
-
 }
-
-
 
 .controls {
-
   display: flex;
-
   align-items: center;
-
   justify-content: center;
-
   gap: 35px;
-
   padding: 12px 0 4px;
-
 }
-
-
 
 button {
-
   border: 0;
-
   background: transparent;
-
   color: #151313;
-
   cursor: pointer;
-
 }
-
-
 
 button svg {
-
   width: 30px;
-
   height: 30px;
-
   fill: currentColor;
-
 }
-
-
 
 button.main svg {
-
   width: 48px;
-
   height: 48px;
-
 }
-
-
 
 .status {
-
   font-size: 11px;
-
   color: #817976;
-
   text-align: center;
-
   padding-top: 8px;
-
 }
-
-
 
 /* YouTube 플레이어: 최소 크기 확보 */
-
 #yt {
-
   width: 200px;
-
   height: 200px;
-
   margin: 12px auto;
-
 }
-
 </style>
-
 </head>
-
-
 
 <body>
 
-
-
 <div class="player">
-
   <div class="cover">
-
     <img id="thumb" src="" alt="Album Cover">
-
   </div>
-
-
 
   <div class="info">
-
     <div class="title" id="title">Music Player</div>
-
     <div class="artist">YouTube Playlist</div>
-
   </div>
-
-
 
   <div class="progress-row">
-
     <span id="elapsed">0:00</span>
-
     <input id="seek" type="range" min="0" max="1000" value="0">
-
     <span id="remaining">-0:00</span>
-
   </div>
-
-
 
   <div class="controls">
-
     <button onclick="previous()">
-
       <svg viewBox="0 0 24 24">
-
         <path d="M6 5h2v14H6zM20 5v14L9 12z"/>
-
       </svg>
-
     </button>
-
-
 
     <button class="main" onclick="togglePlay()">
-
       <svg id="playIcon" viewBox="0 0 24 24">
-
         <path d="M7 4v16l13-8z"/>
-
       </svg>
-
     </button>
-
-
 
     <button onclick="next()">
-
       <svg viewBox="0 0 24 24">
-
         <path d="M16 5h2v14h-2zM4 5v14l11-7z"/>
-
       </svg>
-
     </button>
-
   </div>
 
-
-
   <div class="status" id="status">따냐하</div>
-
 </div>
-
-
 
 <div id="yt"></div>
 
-
-
 <script>
-
 const PLAYLIST_ID = "PLAy4QPNVwM40";
 
-
-
 let player;
-
 let duration = 0;
-
 let seeking = false;
-
 let timer = null;
-
-
 
 const $ = id => document.getElementById(id);
 
-
-
 function fmt(s) {
-
   if (!isFinite(s) || s < 0) s = 0;
-
   return Math.floor(s / 60) + ":" +
-
     String(Math.floor(s % 60)).padStart(2, "0");
-
 }
-
-
 
 function onYouTubeIframeAPIReady() {
-
   player = new YT.Player("yt", {
-
     width: 200,
-
     height: 200,
-
     playerVars: {
-
       listType: "playlist",
-
       playsinline: 1,
-
       rel: 0,
-
       controls: 1
-
     },
-
     events: {
-
       onReady: e => {
-
         e.target.cuePlaylist({
-
           list: PLAYLIST_ID,
-
           listType: "playlist"
-
         });
-
         $("status").textContent = "READY";
-
       },
-
       onStateChange: onState,
-
       onAutoplayBlocked: () => {
-
         $("status").textContent = "PLAYBACK BLOCKED";
-
       },
-
       onError: e => {
-
         $("status").textContent = "ERROR " + e.data;
-
       }
-
     }
-
   });
-
 }
-
-
 
 function onState(e) {
-
   if (e.data === YT.PlayerState.PLAYING) {
-
     $("playIcon").innerHTML =
-
       '<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
-
     $("status").textContent = "NOW PLAYING";
 
-
-
     if (!timer) timer = setInterval(sync, 500);
-
   } else {
-
     $("playIcon").innerHTML =
-
       '<path d="M7 4v16l13-8z"/>';
 
-
-
     if (e.data === YT.PlayerState.PAUSED) {
-
       $("status").textContent = "PAUSED";
-
     }
-
   }
-
   sync();
-
 }
-
-
 
 function sync() {
-
   if (!player || !player.getVideoData) return;
 
-
-
   const data = player.getVideoData();
-
   const id = data.video_id;
 
-
-
   if (id) {
-
     $("title").textContent = data.title;
-
     $("thumb").src =
-
       "https://i.ytimg.com/vi/" + id + "/hqdefault.jpg";
-
   }
-
-
 
   duration = player.getDuration() || 0;
-
   const t = player.getCurrentTime() || 0;
 
-
-
   if (!seeking) {
-
     $("seek").value =
-
       duration ? Math.round(t / duration * 1000) : 0;
-
   }
-
-
 
   $("elapsed").textContent = fmt(t);
-
   $("remaining").textContent =
-
     "-" + fmt(Math.max(0, duration - t));
-
 }
-
-
 
 function togglePlay() {
-
   if (!player) {
-
     $("status").textContent = "LOADING";
-
     return;
-
   }
-
-
 
   if (player.getPlayerState() === YT.PlayerState.PLAYING) {
-
     player.pauseVideo();
-
   } else {
-
     player.playVideo();
-
     $("status").textContent = "PLAY REQUESTED";
-
   }
-
 }
-
-
 
 function next() {
-
   if (player) player.nextVideo();
-
 }
-
-
 
 function previous() {
-
   if (player) player.previousVideo();
-
 }
 
-
-
 $("seek").addEventListener("input", () => {
-
   seeking = true;
-
 });
-
-
 
 $("seek").addEventListener("change", () => {
-
   if (player && duration) {
-
     player.seekTo(
-
       Number($("seek").value) / 1000 * duration,
-
       true
-
     );
-
   }
-
   seeking = false;
-
 });
-
-
 
 </script>
 
-
-
 <script src="https://www.youtube.com/iframe_api"></script>
-
 </body>
-
-</html> 
+</html>
